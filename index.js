@@ -3,6 +3,7 @@ const path = require("path");
 const express = require("express");
 const app = express();
 const feedRoutes = require('./routes/feed')
+const authRoutes = require("./routes/auth")
 const bodyParser = require("body-parser");
 const {validationResult} = require("express-validator");
 const mongoose = require("mongoose");
@@ -13,8 +14,7 @@ const {v4: uuidv4} = require("uuid")
 const fileStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, "images")
-    },
-    filename: (req, file, cb) => {
+    }, filename: (req, file, cb) => {
         cb(null, uuidv4() + "-" + file.originalname);
     }
 })
@@ -42,8 +42,8 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     next();
 });
+app.use("/auth", authRoutes);
 app.use("/feed", feedRoutes);
-
 
 app.use((err, req, res, next) => {
     res.status(err.statusCode || 500).json({error: true, message: err.message, ...err})

@@ -2,7 +2,33 @@ const express = require("express");
 const feedControllers = require("../controllers/feedControllers")
 const {body} = require("express-validator");
 const router = express.Router();
+const jwt = require("jsonwebtoken");
 
+
+function isAuth(req, res, next) {
+    const authHeader = req.get("Authorization");
+    if (!authHeader) {
+        const error = new Error("Authorization header is missing");
+        error.statusCode = 401;
+        return next(error);
+    }
+
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        const error = new Error("Token is missing in Authorization header");
+        error.statusCode = 401;
+        return next(error);
+    }
+
+    try {
+        const decodedToken = jwt.verify(token, "ff933e07-fc6c-482d-a3ac-9c48445b9866");
+        req.userId = decodedToken.userId; // Store decoded data for further use
+        next();
+    } catch (error) {
+        error.statusCode = 401;
+        return next(error); // Pass the error to the error handling middleware
+    }
+}
 
 let validateInput =
     [body('title')
@@ -14,7 +40,7 @@ let validateInput =
         .withMessage("The content is not up to 5 characters long!")];
 
 // GET /feed/posts
-router.get("/posts", feedControllers.getPosts);
+router.get("/posts", isAuth, feedControllers.getPosts);
 
 // POST /feed/post
 router.post("/post", [...validateInput, body("image").trim().custom((value, {req}) => {
@@ -25,7 +51,7 @@ router.post("/post", [...validateInput, body("image").trim().custom((value, {req
 })], feedControllers.createPost);
 
 // PUT /feed/post/edit/:id
-router.put("/post/:id", [...validateInput], feedControllers.editPost)
+router.put("/post/:id", [...validateInput],  feedControllers.editPost)
 
 // GET /post
 router.get("/post/:id", feedControllers.getSinglePost);
