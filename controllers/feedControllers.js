@@ -2,6 +2,7 @@ const {validationResult} = require("express-validator");
 const postModel = require("../models/post");
 const fsPromises = require("fs/promises");
 const {absolutePath} = require("../lib/helpers");
+const userModel = require("../models/user");
 
 // console.log(absolutePath("images"))
 async function clearImage(filePath) {
@@ -38,17 +39,19 @@ async function createPost(req, res, next) {
             throw error;
         }
         const imageUrl = req.file.path;
+        console.log(req.userId);
         const post = await (new postModel({
             title, content,
-            creator: {
-                name: "David Uzondu"
-            },
+            creator: req.userId,
             imageUrl: imageUrl
         })).save();
-
+        const creator = await userModel.findById(req.userId);
+        creator.posts.push(post);
+        await creator.save();
+        console.log(creator.name);
         res.status(201).json({
             messages: ["Post created successfully!"],
-            post
+            post, creator: {_id:creator._id, name:creator.name}
         });
     } catch (e) {
         return next(e);
@@ -68,6 +71,11 @@ async function editPost(req, res, next) {
             throw error;
         }
         const post = await postModel.findById(id);
+        if (post.creator._id.toString() !== req.userId.toString()){
+            const error = new Error("You cannot perform this action.");
+            error.statusCode = 403;
+            throw error;
+        }
         if (!post) {
             const error = new Error("Post not found! Something went wrong. Try again!");
             error.statusCode = 404;
@@ -103,14 +111,22 @@ async function deleteSinglePost(req, res, next) {
     const {id} = req.params;
     try {
         const post = await postModel.findById(id);
+        if (post.creator._id.toString() !== req.userId.toString()){
+            const error = new Error("You cannot perform this action.");
+            error.statusCode = 403;
+            throw error;
+        }
         if (!post) {
             const error = new Error("Post not found! Something went wrong. Try again!");
             error.statusCode = 404;
             throw error;
         }
-        await postModel.findByIdAndDelete(id);
-        clearImage(post.imageUrl);
         res.status(200).json({success: true});
+        clearImage(post.imageUrl);
+        await postModel.findByIdAndDelete(id);
+        const user = (await userModel.findById(req.userId))
+        user.posts.pull(post._id);
+        await user.save();
     } catch (e) {
         return next(e);
     }
